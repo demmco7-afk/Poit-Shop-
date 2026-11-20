@@ -1,0 +1,163 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql"
+  url = env("DATABASE_URL") }
+
+// Status & tipe disimpan sebagai String (divalidasi di backend) agar mudah pindah DB.
+model User { id String @id @default(cuid())
+  email String @unique
+  name String
+  passwordHash String
+  role String @default("CUSTOMER") // OWNER|ADMIN|KASIR|SELLER|JOKI|CUSTOMER
+  createdAt DateTime @default(now())
+  orders Order[]
+  seller Seller?
+  notifications Notification[]
+  complaints Complaint[] }
+model Role { id String @id @default(cuid())
+  name String @unique
+  permissions Permission[] }
+model Permission { id String @id @default(cuid())
+  code String @unique
+  roles Role[] }
+model Category { id String @id @default(cuid())
+  name String
+  slug String @unique
+  type String // GAME_ACCOUNT|JOKI|DIGITAL|TOPUP|SERVICE
+  products Product[] }
+model Product { id String @id @default(cuid())
+  name String
+  description String @default("")
+  price Int
+  stock Int @default(0)
+  imageUrl String?
+  autoDelivery Boolean @default(false)
+  active Boolean @default(true)
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  sellerId String?
+  seller Seller? @relation(fields: [sellerId], references: [id])
+  items OrderItem[]
+  inventory Inventory[]
+  createdAt DateTime @default(now()) }
+model Order { id String @id @default(cuid())
+  code String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  total Int
+  status String @default("PENDING") // PENDING|WAITING_PAYMENT|PAID|PROCESSING|COMPLETED|CANCELLED|REFUNDED
+  createdAt DateTime @default(now())
+  items OrderItem[]
+  payments Payment[]
+  jokiOrder JokiOrder?
+  complaints Complaint[] }
+model OrderItem { id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  productId String
+  product Product @relation(fields: [productId], references: [id])
+  qty Int
+  price Int }
+model PaymentMethod { id String @id @default(cuid())
+  name String
+  type String // MANUAL|QRIS_GATEWAY|EWALLET_GATEWAY|VIRTUAL_ACCOUNT|CUSTOM_API
+  accountNumber String?
+  accountName String?
+  logoUrl String?
+  apiConfig String? // JSON; akan dienkripsi di tahap pembayaran
+  fee Int @default(0)
+  minAmount Int @default(0)
+  maxAmount Int?
+  sortOrder Int @default(0)
+  active Boolean @default(true)
+  payments Payment[] }
+model Payment { id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  methodId String
+  method PaymentMethod @relation(fields: [methodId], references: [id])
+  amount Int
+  status String @default("PENDING") // PENDING|AWAITING_VERIFICATION|PAID|REJECTED|EXPIRED
+  proofUrl String?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  transactions PaymentTransaction[] }
+model PaymentTransaction { id String @id @default(cuid())
+  paymentId String
+  payment Payment @relation(fields: [paymentId], references: [id])
+  gatewayRef String? @unique
+  status String
+  createdAt DateTime @default(now())
+  events PaymentEvent[] }
+model PaymentEvent { id String @id @default(cuid())
+  transactionId String
+  transaction PaymentTransaction @relation(fields: [transactionId], references: [id])
+  payload String
+  verified Boolean @default(false)
+  createdAt DateTime @default(now()) }
+model Seller { id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id])
+  storeName String
+  balance Int @default(0)
+  products Product[]
+  commissions SellerCommission[]
+  payouts SellerPayout[] }
+model SellerCommission { id String @id @default(cuid())
+  sellerId String
+  seller Seller @relation(fields: [sellerId], references: [id])
+  orderId String
+  amount Int
+  rate Float
+  createdAt DateTime @default(now()) }
+model SellerPayout { id String @id @default(cuid())
+  sellerId String
+  seller Seller @relation(fields: [sellerId], references: [id])
+  amount Int
+  status String @default("REQUESTED")
+  createdAt DateTime @default(now()) }
+model JokiService { id String @id @default(cuid())
+  game String
+  name String
+  price Int
+  active Boolean @default(true) }
+model JokiOrder { id String @id @default(cuid())
+  orderId String @unique
+  order Order @relation(fields: [orderId], references: [id])
+  serviceId String
+  jokiUserId String?
+  progress Int @default(0)
+  status String @default("QUEUED")
+  notes String? }
+model PosTransaction { id String @id @default(cuid())
+  cashierId String
+  total Int
+  discount Int @default(0)
+  method String
+  createdAt DateTime @default(now()) }
+model Inventory { id String @id @default(cuid())
+  productId String
+  product Product @relation(fields: [productId], references: [id])
+  change Int
+  note String?
+  createdAt DateTime @default(now()) }
+model Notification { id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  message String
+  read Boolean @default(false)
+  createdAt DateTime @default(now()) }
+model Complaint { id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  message String
+  status String @default("OPEN")
+  createdAt DateTime @default(now()) }
+model Setting { key String @id
+  value String }
+model AuditLog { id String @id @default(cuid())
+  userId String?
+  action String
+  detail String?
+  createdAt DateTime @default(now()) }
